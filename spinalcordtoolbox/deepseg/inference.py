@@ -121,6 +121,7 @@ def segment_non_ivadomed(path_model, model_type, input_filenames, threshold, kee
         assert model_type == "nnunet"
         create_net = ds_nnunet.create_nnunet_from_plans
         inference = segment_nnunet
+        extra_inference_kwargs.update({'threshold': threshold})
 
     device = torch.device("cuda" if use_gpu else "cpu")
 
@@ -216,7 +217,7 @@ def segment_monai(path_img, tmpdir, predictor, device: torch.device):
     return [fname_out], [target]
 
 
-def segment_nnunet(path_img, tmpdir, predictor, device: torch.device):
+def segment_nnunet(path_img, tmpdir, predictor, device: torch.device, threshold):
     """
     This script is used to run inference on a single subject using a nnUNetV2 model.
 
@@ -230,6 +231,8 @@ def segment_nnunet(path_img, tmpdir, predictor, device: torch.device):
     if device != predictor.device:
         logger.warning(f"Param `device` (value: {device}) is ignored in favor of `predictor.device` (value: "
                        f"{predictor.device}). To change the device, please modify the initialization of the predictor.")
+        
+    return_probabilities = not threshold
 
     # Copy the file to the temporary directory using shutil.copyfile
     path_img_tmp = os.path.join(tmpdir, os.path.basename(path_img))
@@ -279,8 +282,14 @@ def segment_nnunet(path_img, tmpdir, predictor, device: torch.device):
         input_image=data,
         # The spacings also have to be reversed to match nnUNet's conventions.
         image_properties={'spacing': img_in.dim[6:3:-1]},
+        save_or_return_probabilities = return_probabilities
     )
     # Lastly, we undo the transpose to return the image from [z,y,x] (SimpleITK) to [x,y,z] (nibabel)
+    if return_probabilities:
+        # nnunet returns tuple if you ask to return probs, therefore we get second index (probs)
+        # and select the second 4th dimension index (contains probabilities of class 1 -- assuming binary)
+        assert pred[1].shape[0] == 2
+        pred = pred[1][1]
     pred = pred.transpose([2, 1, 0])
     img_out = img_in.copy()
     img_out.data = pred
