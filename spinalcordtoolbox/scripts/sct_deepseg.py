@@ -206,7 +206,7 @@ def get_parser(subparser_to_return=None):
         params = subparser.add_argument_group('\nPARAMETERS')
         params.add_argument(
             "-thr",
-            type=float,
+            type=lambda x: float(x) if '.' in x else int(x),
             dest='binarize_prediction',
             help="Binarize segmentation with specified threshold. Set to 0 for no thresholding (i.e., soft segmentation). "
                  "Default value is model-specific and was set during optimization "
