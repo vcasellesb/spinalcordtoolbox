@@ -232,7 +232,9 @@ def segment_nnunet(path_img, tmpdir, predictor, device: torch.device, threshold)
         logger.warning(f"Param `device` (value: {device}) is ignored in favor of `predictor.device` (value: "
                        f"{predictor.device}). To change the device, please modify the initialization of the predictor.")
         
-    return_probabilities = not threshold
+    # if thr is set (not None) and it is zero, we return probabilities
+    # if it's None, binary prediction is given
+    return_probabilities = threshold is not None and threshold == 0
 
     # Copy the file to the temporary directory using shutil.copyfile
     path_img_tmp = os.path.join(tmpdir, os.path.basename(path_img))
@@ -284,12 +286,12 @@ def segment_nnunet(path_img, tmpdir, predictor, device: torch.device, threshold)
         image_properties={'spacing': img_in.dim[6:3:-1]},
         save_or_return_probabilities = return_probabilities
     )
-    # Lastly, we undo the transpose to return the image from [z,y,x] (SimpleITK) to [x,y,z] (nibabel)
     if return_probabilities:
         # nnunet returns tuple if you ask to return probs, therefore we get second index (probs)
         # and select the second 4th dimension index (contains probabilities of class 1 -- assuming binary)
         assert pred[1].shape[0] == 2
         pred = pred[1][1]
+    # Lastly, we undo the transpose to return the image from [z,y,x] (SimpleITK) to [x,y,z] (nibabel)
     pred = pred.transpose([2, 1, 0])
     img_out = img_in.copy()
     img_out.data = pred
